@@ -1,0 +1,73 @@
+name: vp actions
+on: workflow_dispatch
+env:
+    AWS_REGION: us-east-2
+    ECR_REPOSITORY: vpapp
+    EKS_CLUSTER: vp-eks
+
+jobs:
+    Testing:
+        runs-on: ubuntu:latest
+        steps:
+          - name: Code checkout
+            uses: actions/checkout@v4
+
+          - name: Maven test
+            run: mvn test
+
+          - name: Checkstyle
+            run: mvn checkstyle:checkstyle
+        
+        # Setup java 11 to be default (sonar-scanner requirement as of 5.x)
+          - name: Set java 11
+            uses: actions/setup-java@v3
+            with:
+                distribution: 'temurin' #See 'Suppported distributions' for available'
+                java-version: '11'
+
+          - name: Setup SonarQube
+            uses: warchant/setup-sonar-scanner@v7
+            
+        # Run solar-scanner
+          - name: SonarQube Scan
+            run: sonar-scanner
+                -Dsonar.host.url=${{ secrets.SONAR_URL }}
+                -Dsonar.login=${{ secrets.SONAR_TOKEN }}
+                -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+                -Dsonar.projectkey=${{ secrets.SONAR_PROJECT_KEY }}
+                -Dsonar.sources=src/
+                -Dsonar.junit.reportsPath=target/surefire-reports/
+                -Dsonar.jacoco.reportsPath=target/jacoco.exec
+                -Dsonar.java.checkstyle.reportPAths=target/checkstyle-result.xml
+                -Dsonar.java.binaries=target/test-classes/com/visualpathit/account
+        
+        # Check the Quality Gate status
+          - name: SonarQube Quality Gate check
+            id: sonarqube-quality-gate-check
+            uses: sonarsource/sonarqube-quality-gate-action@master
+            # Force to fail step after specific time
+            timeout-minutes: 5
+            env:
+                SONAR_TOKEN: ${{secrets.SONAR_TOKEN }}
+                SONAR_HOST_URL: ${{secrets.SONAR_URL }} #OPTIONAL
+  
+    BUILD_AND_PUBLISH:
+      needs: Testing
+      runs-on: ubuntu-latest
+      steps:
+        - name: Code checkout
+          uses: actions/checkout@v4
+
+        - name: upload image to ECR
+          uses: appleboy/docker-ecr-action@master
+          with:
+            access_key: ${{ secrets.aws_access_key_id }}
+            secret_key: ${{ secrets.aws_secret_access_key }}
+            registry: ${{ secrets.registry }}
+            cache_from: ${{ secrets.cache }}
+            repo: api-sample
+            region: ap-northeast-1
+            auto_tag: true
+            daemon_off: false
+            dockerfile: example/Dockerfile
+            context: example
