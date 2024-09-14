@@ -93,6 +93,12 @@ jobs:
           run: |
             kubectl delete secret regcred --ignore-not-found
 
+        - name: Install Helm
+          uses: azure/setup-helm@v1
+          with:
+              version: 'v3.9.4'
+
+
         - name: Login to ECR
           run: |
             kubectl create secret docker-registry regcred \
