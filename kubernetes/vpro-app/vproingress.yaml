@@ -7,7 +7,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-  - host: vprofile.ryanonacloud.click
+  - host: vp.ryanonacloud.click
     http:
       paths:
       - path: /
